@@ -1,0 +1,956 @@
+<!-- Rosebay ordering demo — one page, no build step.
+     Guests order from a table; the kitchen screen sees the order arrive and moves it along.
+     Shared state: the Claude artifact's `db` capability when a signed-in viewer opens it, so two
+     devices see the same orders. Everywhere else (GitHub Pages, a local file) each browser keeps
+     its own orders — the page says so rather than pretending.
+     Menu, photographs and their captions come from data.js, built from the studio's catalogue. -->
+<title>Rosebay Ordering Demo</title>
+<meta name="description" content="A demonstration of QR table ordering for Rosebay Home Cooking &amp; Café: order from a table, watch it reach the kitchen screen.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8D%B3%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --paper: #F5F2E9; --paper-2: #EDE8DA; --paper-3: #E3DCC9; --surface: #FFFEFA;
+    --ink: #22251F; --ink-2: #4A4E45; --ink-3: #5F6459;
+    --line: #D5CDB8; --line-strong: #857E6E;
+    --green: #12564C; --green-deep: #0C3D36; --green-tint: #E3EFEC; --on-green: #FFFEFA;
+    --amber-ink: #8A4300; --amber-tint: #FCEBD7;
+    --timber-ink: #7A4E32; --timber-tint: #F6ECE1;
+    --backdrop: rgb(34 37 31 / .48);
+    --font-head: Georgia, "Times New Roman", "Noto Serif Thai", serif;
+    --font-body: system-ui, -apple-system, "Noto Sans Thai", "Segoe UI", sans-serif;
+    --radius-s: 6px; --radius-m: 10px; --radius-l: 16px; --pill: 999px;
+    --gutter: max(16px, env(safe-area-inset-left));
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+    overflow-wrap: break-word;
+  }
+  h1, h2, h3 { font-family: var(--font-head); font-weight: 600; margin: 0; }
+  /* Form controls do not inherit colour on their own: without this they keep the browser's
+     black-on-white default and go unreadable on the dark ground. */
+  button, input, select, textarea, output { font: inherit; color: var(--ink); }
+  a { color: var(--green); }
+  :focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 var(--gutter); }
+
+  /* ── top bar ─────────────────────────────────────────────────────────── */
+  .top { position: sticky; top: 0; z-index: 30; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .top__row { display: flex; align-items: center; gap: 12px; padding: 10px 0; flex-wrap: wrap; }
+  .brand { font-family: var(--font-head); font-size: 1.25rem; margin-right: auto; }
+  .brand small { display: block; font-family: var(--font-body); font-size: .75rem; color: var(--ink-3); font-weight: 400; }
+  .lang { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--pill); overflow: hidden; }
+  .lang button { background: none; border: 0; padding: 6px 14px; cursor: pointer; font-size: .875rem; }
+  .lang button[aria-pressed="true"] { background: var(--green); color: var(--on-green); }
+
+  .screens { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; scrollbar-width: thin; }
+  .screens button {
+    flex: 0 0 auto; background: var(--paper-2); border: 1px solid var(--line);
+    border-radius: var(--pill); padding: 7px 14px; font-size: .875rem; cursor: pointer; white-space: nowrap;
+  }
+  .screens button[aria-pressed="true"] { background: var(--green); color: var(--on-green); border-color: var(--green); }
+
+  .banner { background: var(--amber-tint); color: var(--amber-ink); font-size: .8125rem; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .banner p { margin: 0; }
+
+  main { padding: 20px 0 64px; }
+  .panel { margin-bottom: 28px; }
+  .panel > h2 { font-size: 1.375rem; margin-bottom: 4px; }
+  .panel > .sub { color: var(--ink-3); font-size: .875rem; margin: 0 0 16px; }
+
+  /* ── menu ────────────────────────────────────────────────────────────── */
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 6px; }
+  .tabs button { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--pill); padding: 8px 16px; cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--green); color: var(--on-green); border-color: var(--green); }
+  .search { flex: 1 1 180px; min-width: 0; }
+  .search input { width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); font: inherit; }
+
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 8px; }
+  .chips button { flex: 0 0 auto; background: none; border: 1px solid var(--line); border-radius: var(--pill); padding: 5px 12px; font-size: .8125rem; cursor: pointer; white-space: nowrap; }
+  .chips button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
+
+  .cat-head { font-size: 1.0625rem; margin: 22px 0 10px; padding-top: 4px; }
+  .cat-head span { display: block; font-family: var(--font-body); font-size: .8125rem; color: var(--ink-3); font-weight: 400; }
+
+  .cards { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 620px) { .cards { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 980px) { .cards { grid-template-columns: 1fr 1fr 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 12px; display: flex; gap: 12px; align-items: flex-start; }
+  .thumb { position: relative; flex: 0 0 auto; width: 96px; height: 96px; border-radius: var(--radius-m); overflow: hidden; background: var(--paper-2); }
+  @media (max-width: 280px) { .card { flex-direction: column; } .thumb { width: 100%; height: 160px; } }
+  .thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .thumb--contain img { object-fit: contain; }
+  .thumb__tag {
+    position: absolute; left: 0; right: 0; bottom: 0; background: rgb(34 37 31 / .78); color: #fff;
+    font-size: .6875rem; text-align: center; padding: 2px 4px; line-height: 1.25;
+  }
+  .card__body { flex: 1 1 auto; min-width: 0; }
+  .card__name { font-size: 1rem; margin-bottom: 2px; }
+  .card__name button { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: inherit; font-family: var(--font-head); }
+  .card__name button:hover { text-decoration: underline; }
+  .card__sub { font-size: .8125rem; color: var(--ink-3); margin: 0 0 6px; }
+  .card__cap { font-size: .75rem; color: var(--ink-3); margin: 0 0 8px; }
+  .card__foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .price { font-weight: 600; }
+  .price small { display: block; font-weight: 400; font-size: .75rem; color: var(--ink-3); }
+
+  .btn { background: var(--green); color: var(--on-green); border: 1px solid var(--green); border-radius: var(--pill); padding: 8px 16px; cursor: pointer; font-size: .875rem; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn--quiet { background: none; color: var(--green); }
+  .btn--small { padding: 5px 11px; font-size: .8125rem; }
+  .btn--wide { width: 100%; padding: 13px; font-size: 1rem; }
+
+  /* ── dialog ──────────────────────────────────────────────────────────── */
+  dialog { border: 0; padding: 0; border-radius: var(--radius-l); background: var(--surface); color: var(--ink); max-width: 560px; width: calc(100% - 24px); }
+  dialog::backdrop { background: var(--backdrop); }
+  .sheet__head { display: flex; gap: 10px; align-items: flex-start; padding: 16px 16px 8px; border-bottom: 1px solid var(--line); }
+  .sheet__name { flex: 1 1 auto; min-width: 0; font-size: 1.25rem; }
+  .sheet__close { flex: 0 0 auto; width: 40px; height: 40px; border-radius: var(--pill); border: 1px solid var(--line); background: none; cursor: pointer; font-size: 1.1rem; }
+  .sheet__body { padding: 16px; }
+  .sheet__photo { width: 100%; aspect-ratio: 1; border-radius: var(--radius-m); overflow: hidden; background: var(--paper-2); margin-bottom: 8px; }
+  .sheet__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cap { font-size: .8125rem; color: var(--ink-3); margin: 0 0 12px; }
+  .cap b { color: var(--amber-ink); font-weight: 600; }
+  .block { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+  .block h3 { font-size: .8125rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-family: var(--font-body); margin-bottom: 6px; }
+  .opts { display: flex; flex-direction: column; gap: 6px; }
+  .opts label { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-m); cursor: pointer; }
+  .qty { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: var(--pill); }
+  .qty button { width: 40px; height: 40px; border: 0; background: none; cursor: pointer; font-size: 1.1rem; border-radius: var(--pill); }
+  .qty output { min-width: 2ch; text-align: center; }
+
+  /* ── cart, orders, kitchen ───────────────────────────────────────────── */
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px; }
+  .row__top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .row__top strong { font-family: var(--font-head); }
+  .muted { color: var(--ink-3); font-size: .8125rem; }
+  .lines { list-style: none; margin: 8px 0 0; padding: 0; font-size: .875rem; }
+  .lines li { display: flex; gap: 8px; justify-content: space-between; padding: 2px 0; }
+  .total { display: flex; justify-content: space-between; font-weight: 600; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+  .status { display: inline-block; border-radius: var(--pill); padding: 2px 10px; font-size: .75rem; border: 1px solid var(--line-strong); }
+  .status--submitted { background: var(--amber-tint); color: var(--amber-ink); border-color: var(--amber-ink); }
+  .status--accepted, .status--preparing { background: var(--timber-tint); color: var(--timber-ink); border-color: var(--timber-ink); }
+  .status--ready { background: var(--green-tint); color: var(--green-deep); border-color: var(--green); }
+  .status--served { background: var(--paper-2); color: var(--ink-3); }
+  .status--rejected, .status--cancelled { background: var(--paper-3); color: var(--ink-2); }
+
+  .bar { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 12px var(--gutter); box-shadow: 0 -8px 32px -12px rgb(34 37 31 / .3); z-index: 20; }
+  .bar .wrap { display: flex; gap: 12px; align-items: center; padding: 0; }
+
+  .cols { display: grid; gap: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .cols { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+  .col { background: var(--paper-2); border-radius: var(--radius-m); padding: 10px; }
+  .col h3 { font-size: .9375rem; margin-bottom: 8px; display: flex; justify-content: space-between; }
+
+  .empty { color: var(--ink-3); font-size: .875rem; background: var(--paper-2); border-radius: var(--radius-m); padding: 16px; text-align: center; }
+
+  .chart { display: flex; align-items: flex-end; gap: 6px; height: 160px; padding-top: 8px; }
+  .chart div { flex: 1; background: var(--green); border-radius: 4px 4px 0 0; min-height: 2px; }
+  /* The day labels sit in their own row under the bars, on the page ground, so their
+     contrast never depends on the colour of the bar above them. */
+  .chart-days { display: flex; gap: 6px; margin-top: 6px; }
+  .chart-days span { flex: 1; text-align: center; font-size: .6875rem; color: var(--ink-2); }
+
+  .tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 12px; }
+  .tile b { display: block; font-size: 1.75rem; font-family: var(--font-head); }
+  .tile span { font-size: .8125rem; color: var(--ink-3); }
+
+  .notice { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--green); border-radius: var(--radius-m); padding: 14px 16px; margin-bottom: 20px; }
+  .notice ul { margin: 8px 0 0; padding-left: 20px; }
+  .notice li { margin-bottom: 6px; font-size: .875rem; }
+
+  .index-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .index-list button { width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 14px; cursor: pointer; }
+  .index-list strong { display: block; font-family: var(--font-head); font-size: 1.0625rem; margin-bottom: 2px; }
+
+  footer { border-top: 1px solid var(--line); padding: 24px 0 40px; font-size: .8125rem; color: var(--ink-3); }
+  .credit { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--ink-2); text-decoration: none; }
+  .credit svg { width: 22px; height: 22px; }
+  .credit span { font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #16180F; --paper-2: #1F2219; --paper-3: #2A2E23; --surface: #1B1E15;
+      --ink: #F2EFE4; --ink-2: #D2CDBD; --ink-3: #ABA695;
+      --line: #3A3E31; --line-strong: #6A6F5E;
+      --green: #7FC9B6; --green-deep: #BFE6DC; --green-tint: #1E3C36; --on-green: #10140D;
+      --amber-ink: #F0BE86; --amber-tint: #3A2A17;
+      --timber-ink: #E0B093; --timber-tint: #35251A;
+      color-scheme: dark;
+    }
+  }
+</style>
+
+<div class="top">
+  <div class="wrap">
+    <div class="top__row">
+      <div class="brand">Rosebay <small data-t="tagline"></small></div>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="th" aria-pressed="true">ไทย</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <nav class="screens" aria-label="Screens" data-screens></nav>
+  </div>
+</div>
+
+<div class="banner"><div class="wrap"><p data-t="demoBanner"></p></div></div>
+
+<main class="wrap" id="main"></main>
+
+<footer>
+  <div class="wrap">
+    <p data-t="footer"></p>
+    <p class="muted" data-t="storeNote"></p>
+    <a class="credit" href="https://o2-designstudio.com/" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="3"/><text x="24" y="31" text-anchor="middle" font-family="Georgia, serif" font-size="19" fill="currentColor">O2</text></svg>
+      <span>Design Studio</span>
+    </a>
+  </div>
+</footer>
+
+<dialog data-sheet aria-labelledby="sheet-name"></dialog>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── words ─────────────────────────────────────────────────────────────
+     Thai is written, not translated. Both languages say the same thing. */
+  const T = {
+    th: {
+      tagline: 'ตัวอย่างระบบสั่งอาหารที่โต๊ะ',
+      demoBanner: 'ตัวอย่างเพื่อการออกแบบ ไม่ใช่ระบบสั่งอาหารจริงของร้าน Rosebay · ไม่มีการชำระเงินจริง · ราคาเป็นราคาย้อนหลังที่ร้านยังไม่ได้ยืนยัน',
+      screens: { index: 'หน้าแรก', menu: 'สั่งอาหาร', orders: 'ออร์เดอร์ของฉัน', kitchen: 'ครัว', stats: 'สถิติ' },
+      indexTitle: 'ตัวอย่างระบบสั่งอาหารที่โต๊ะ',
+      indexSub: 'เปิดหน้าสั่งอาหารในมือถือ สั่งอาหาร แล้วเปิดหน้าครัวในอีกเครื่องหนึ่ง จะเห็นออร์เดอร์เข้ามา',
+      indexItems: {
+        menu: ['สั่งอาหาร', 'เมนูทั้งหมด 58 รายการพร้อมภาพ เลือกใส่ตะกร้าแล้วส่งไปที่ครัว'],
+        orders: ['ออร์เดอร์ของฉัน', 'สถานะออร์เดอร์ของโต๊ะนี้ อัปเดตเมื่อครัวเปลี่ยนสถานะ'],
+        kitchen: ['ครัว', 'คิวออร์เดอร์ที่เข้ามา รับออร์เดอร์ ทำอาหาร เสิร์ฟ หรือปฏิเสธ'],
+        stats: ['สถิติ', 'จำนวนออร์เดอร์รายวัน เมนูที่สั่งมากและน้อยที่สุด'],
+      },
+      table: 'โต๊ะ', pickTable: 'เลือกโต๊ะ', changeTable: 'เปลี่ยนโต๊ะ',
+      search: 'ค้นหาเมนู', searchNone: 'ไม่พบรายการที่ค้นหา',
+      details: 'รายละเอียด', add: 'ใส่ตะกร้า', added: 'ใส่ตะกร้าแล้ว',
+      cart: 'ตะกร้า', cartEmpty: 'ยังไม่มีรายการในตะกร้า', send: 'ส่งออร์เดอร์', sending: 'กำลังส่ง…',
+      total: 'รวม', qty: 'จำนวน', remove: 'นำออก', note: 'หมายเหตุถึงครัว', notePlaceholder: 'เช่น ไม่เผ็ด',
+      myOrders: 'ออร์เดอร์ของฉัน', noOrders: 'โต๊ะนี้ยังไม่ได้ส่งออร์เดอร์',
+      kitchenTitle: 'คิวครัว', kitchenSub: 'ออร์เดอร์ที่เข้ามาจากโต๊ะต่าง ๆ',
+      statsTitle: 'สถิติ', statsSub: 'นับจากออร์เดอร์ที่อยู่ในระบบตัวอย่างนี้',
+      status: { submitted: 'ส่งแล้ว รอครัวรับ', accepted: 'ครัวรับแล้ว', preparing: 'กำลังทำ', ready: 'พร้อมเสิร์ฟ', served: 'เสิร์ฟแล้ว', rejected: 'ปฏิเสธ', cancelled: 'ยกเลิก' },
+      move: { accepted: 'รับออร์เดอร์', preparing: 'เริ่มทำ', ready: 'พร้อมเสิร์ฟ', served: 'เสิร์ฟแล้ว', rejected: 'ปฏิเสธ' },
+      noKitchen: 'ยังไม่มีออร์เดอร์เข้ามา ลองสั่งจากหน้าสั่งอาหาร',
+      ordersToday: 'ออร์เดอร์วันนี้', ordersAll: 'ออร์เดอร์ทั้งหมด', itemsSold: 'จำนวนรายการที่สั่ง', avg: 'ค่าเฉลี่ยต่อออร์เดอร์',
+      last7: 'เจ็ดวันล่าสุด', most: 'สั่งมากที่สุด', least: 'สั่งน้อยที่สุด', noStats: 'ยังไม่มีออร์เดอร์ให้นับ',
+      priceHistorical: 'ราคาย้อนหลัง · ร้านยังไม่ได้ยืนยัน',
+      priceConflicting: 'แหล่งข้อมูลระบุราคาไม่ตรงกัน · ยังไม่ได้ยืนยัน',
+      pricePending: 'ราคารอยืนยัน',
+      sampleTag: 'ภาพตัวอย่าง',
+      capRestaurant: 'ภาพที่ร้านเผยแพร่เอง · ร้านยังไม่ได้ให้อนุญาตเป็นลายลักษณ์อักษร',
+      capPrinted: 'ภาพถ่ายจากเมนูที่ร้านพิมพ์เอง · ร้านยังไม่ได้ให้อนุญาต',
+      capMenuCard: 'การ์ดเมนูของร้านเอง จากรายการใน Google ของร้าน · ร้านยังไม่ได้ให้อนุญาต',
+      capOther: 'ภาพที่คนอื่นเป็นเจ้าของ · ร้านไม่ได้โพสต์ภาพนี้เอง · ยังไม่ได้ขออนุญาตจากเจ้าของภาพ',
+      capSampleLic: 'ใช้ตามสัญญาอนุญาต',
+      capBy: 'ภาพโดย',
+      byStudio: 'จับคู่ภาพกับรายการนี้จากลักษณะอาหารในภาพ',
+      footer: 'O2 Design Studio ออกแบบตัวอย่างนี้ขึ้นเพื่อศึกษาการใช้งาน ไม่ใช่ระบบของร้าน Rosebay และร้านไม่ได้มอบหมายให้ทำ',
+      sharedOn: 'ออร์เดอร์ในหน้านี้ใช้ข้อมูลร่วมกัน เปิดหน้านี้ในอีกเครื่องหนึ่งจะเห็นออร์เดอร์เดียวกัน',
+      sharedOff: 'ออร์เดอร์ในหน้านี้เก็บไว้ในเบราว์เซอร์นี้เท่านั้น เครื่องอื่นจะไม่เห็น',
+    },
+    en: {
+      tagline: 'A table-ordering demonstration',
+      demoBanner: 'A design demonstration, not Rosebay’s real ordering system · no real payment · prices are historical and not confirmed by the restaurant',
+      screens: { index: 'Start', menu: 'Order', orders: 'My orders', kitchen: 'Kitchen', stats: 'Stats' },
+      indexTitle: 'A table-ordering demonstration',
+      indexSub: 'Open the ordering screen on a phone, send an order, then open the kitchen screen on another device and watch it arrive.',
+      indexItems: {
+        menu: ['Order', 'All 58 items with their photographs. Add to a cart and send it to the kitchen.'],
+        orders: ['My orders', 'What this table has sent, with its status as the kitchen moves it along.'],
+        kitchen: ['Kitchen', 'The queue of incoming orders: accept, prepare, serve or reject.'],
+        stats: ['Stats', 'Orders a day, and which items are ordered most and least.'],
+      },
+      table: 'Table', pickTable: 'Choose a table', changeTable: 'Change table',
+      search: 'Search the menu', searchNone: 'Nothing matches that search',
+      details: 'Details', add: 'Add to cart', added: 'Added',
+      cart: 'Cart', cartEmpty: 'Nothing in the cart yet', send: 'Send the order', sending: 'Sending…',
+      total: 'Total', qty: 'Quantity', remove: 'Remove', note: 'Note for the kitchen', notePlaceholder: 'e.g. not spicy',
+      myOrders: 'My orders', noOrders: 'This table has not sent an order yet',
+      kitchenTitle: 'Kitchen queue', kitchenSub: 'Orders as they arrive from the tables',
+      statsTitle: 'Stats', statsSub: 'Counted from the orders in this demonstration',
+      status: { submitted: 'Sent, waiting for the kitchen', accepted: 'Accepted', preparing: 'Being made', ready: 'Ready to serve', served: 'Served', rejected: 'Rejected', cancelled: 'Cancelled' },
+      move: { accepted: 'Accept', preparing: 'Start making', ready: 'Ready', served: 'Served', rejected: 'Reject' },
+      noKitchen: 'No orders yet. Send one from the ordering screen.',
+      ordersToday: 'Orders today', ordersAll: 'Orders in total', itemsSold: 'Items ordered', avg: 'Average order',
+      last7: 'The last seven days', most: 'Ordered most', least: 'Ordered least', noStats: 'No orders to count yet',
+      priceHistorical: 'Historical price · not confirmed by the restaurant',
+      priceConflicting: 'Sources disagree on the price · not confirmed',
+      pricePending: 'Price to be confirmed',
+      sampleTag: 'Sample',
+      capRestaurant: 'Published by the restaurant itself · the restaurant has not given written permission',
+      capPrinted: 'The restaurant’s own printed-menu photograph · the restaurant has not given permission',
+      capMenuCard: 'The restaurant’s own menu card from its Google listing · the restaurant has not given permission',
+      capOther: 'A photograph someone else owns · not posted by the restaurant · its owner’s permission has not been obtained',
+      capSampleLic: 'used under the',
+      capBy: 'photo by',
+      byStudio: 'Matched to this item by what the dish looks like',
+      footer: 'O2 Design Studio built this demonstration as a usability study. It is not Rosebay’s system, and the restaurant did not commission it.',
+      sharedOn: 'Orders on this page are shared: open it on another device and you will see the same ones.',
+      sharedOff: 'Orders on this page are kept in this browser only — another device will not see them.',
+    },
+  };
+
+  let lang = 'th';
+  const t = () => T[lang];
+  const $ = (s, r) => (r || document).querySelector(s);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const baht = (n) => '฿' + Number(n).toLocaleString('en-US');
+  const nameOf = (it) => (lang === 'th' ? (it.th || it.en) : (it.en || it.th)) || it.id;
+
+  /* ── the order store ───────────────────────────────────────────────────
+     One adapter over two backings: the artifact's shared db when a viewer is
+     signed in to it, otherwise this browser's own localStorage. Every screen
+     reads through here, so the same code runs either way. */
+  const Store = {
+    shared: false, db: null, orders: [], _subs: [],
+    KEY: 'rosebay-order-demo-v1',
+
+    async init() {
+      try {
+        const db = window.claude && typeof window.claude.use === 'function' ? await window.claude.use('db') : null;
+        if (db) { this.db = db; this.shared = true; }
+      } catch (err) { /* no viewer, or the capability is not granted: stay local */ }
+      if (this.shared) {
+        try {
+          this.db.collection('orders').onSnapshot((docs) => {
+            this.orders = (docs || []).map((d) => (d && d.data ? d.data : d)).filter(Boolean);
+            this._emit();
+          });
+          return;
+        } catch (err) { this.shared = false; this.db = null; }
+      }
+      this.orders = this._readLocal();
+      this._emit();
+    },
+    _readLocal() {
+      try { const raw = localStorage.getItem(this.KEY); return raw ? JSON.parse(raw) : []; } catch (err) { return []; }
+    },
+    _writeLocal() {
+      try { localStorage.setItem(this.KEY, JSON.stringify(this.orders)); } catch (err) { /* private window: keep it in memory */ }
+    },
+    onChange(fn) { this._subs.push(fn); },
+    _emit() { for (const fn of this._subs) fn(); },
+
+    async add(order) {
+      if (this.shared) {
+        try { await this.db.collection('orders').doc(order.id).set(order); return true; } catch (err) { /* fall through */ }
+      }
+      this.orders = this.orders.concat([order]);
+      this._writeLocal(); this._emit();
+      return true;
+    },
+    async setStatus(id, status) {
+      const found = this.orders.find((o) => o.id === id);
+      if (!found) return;
+      const next = Object.assign({}, found, {
+        status,
+        history: (found.history || []).concat([{ status, at: new Date().toISOString() }]),
+      });
+      if (this.shared) {
+        try { await this.db.collection('orders').doc(id).set(next); return; } catch (err) { /* fall through */ }
+      }
+      this.orders = this.orders.map((o) => (o.id === id ? next : o));
+      this._writeLocal(); this._emit();
+    },
+    all() { return this.orders.slice().sort((a, b) => String(b.placedAt).localeCompare(String(a.placedAt))); },
+    forTable(tableId) { return this.all().filter((o) => o.tableId === tableId); },
+  };
+
+  /* ── this browser's own choices ────────────────────────────────────── */
+  const Me = {
+    get table() { try { return localStorage.getItem('rosebay-table') || null; } catch (err) { return this._t || null; } },
+    set table(v) { this._t = v; try { localStorage.setItem('rosebay-table', v); } catch (err) { /* ignore */ } },
+  };
+  const TABLES = ['01', '02', '03', '04', '05', '06', '07', '08'];
+  const tableName = (id) => (lang === 'th' ? 'โต๊ะ ' : 'Table ') + id;
+
+  let cart = [];      // {itemId, name, qty, unitTHB, variant}
+  let cartNote = '';
+  let screen = 'index';
+  let group = 'food';
+  let category = null;
+  let query = '';
+
+  /* ── captions, exactly as the catalogue records them ─────────────────── */
+  function captionOf(img) {
+    if (!img) return null;
+    if (img.kind === 'sample' && img.sample) {
+      const s = img.sample;
+      const parts = [lang === 'th' ? s.labelTh : s.labelEn];
+      if (s.licence) parts.push(t().capSampleLic + ' ' + s.licence + (lang === 'th' ? '' : ' licence'));
+      if (s.attribution && s.creator) parts.push(t().capBy + ' ' + s.creator);
+      return { text: parts.join(' · '), sample: true, licenceUrl: s.licenceUrl || null, sourceUrl: s.sourceUrl || null };
+    }
+    const map = {
+      'restaurant-post': t().capRestaurant,
+      'printed-menu': t().capPrinted,
+      'menu-card': t().capMenuCard,
+      'third-party': t().capOther,
+    };
+    return { text: map[img.kind] || '', sample: false };
+  }
+
+  function priceLine(it) {
+    if (it.pk === 'pending') return t().pricePending;
+    if (it.pk === 'conflicting') return t().priceConflicting;
+    return t().priceHistorical;
+  }
+
+  /* ── building blocks ─────────────────────────────────────────────────── */
+  function thumbNode(it) {
+    const box = el('div', 'thumb' + (it.img && it.img.fit === 'contain' ? ' thumb--contain' : ''));
+    if (it.img && it.img.bg) box.style.background = it.img.bg;
+    const img = el('img');
+    img.src = it.img.s320 || it.img.s;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.width = 320; img.height = 320;
+    if (it.img.fit !== 'contain') img.style.objectPosition = it.img.pos;
+    box.appendChild(img);
+    if (it.img.kind === 'sample') box.appendChild(el('span', 'thumb__tag', t().sampleTag));
+    return box;
+  }
+
+  function cardNode(it) {
+    const card = el('article', 'card');
+    card.dataset.itemId = it.id;
+    if (it.img) card.appendChild(thumbNode(it));
+
+    const body = el('div', 'card__body');
+    const h3 = el('h3', 'card__name');
+    const open = el('button', null, nameOf(it));
+    open.type = 'button';
+    open.setAttribute('aria-label', t().details + ': ' + nameOf(it));
+    open.addEventListener('click', () => openSheet(it));
+    h3.appendChild(open);
+    body.appendChild(h3);
+
+    const other = lang === 'th' ? it.en : it.th;
+    if (other && other !== nameOf(it)) body.appendChild(el('p', 'card__sub', other));
+
+    const cap = captionOf(it.img);
+    if (cap && cap.text) body.appendChild(el('p', 'card__cap', cap.text));
+
+    const foot = el('div', 'card__foot');
+    const price = el('div', 'price');
+    price.append(it.p == null ? '—' : baht(it.p), el('small', null, priceLine(it)));
+    foot.appendChild(price);
+    const add = el('button', 'btn btn--small', t().add);
+    add.type = 'button';
+    add.addEventListener('click', () => { addToCart(it, 1, null); flash(add); });
+    foot.appendChild(add);
+    body.appendChild(foot);
+
+    card.appendChild(body);
+    return card;
+  }
+
+  function flash(btn) {
+    const was = btn.textContent;
+    btn.textContent = t().added;
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = was; btn.disabled = false; }, 900);
+  }
+
+  /* ── item dialog ─────────────────────────────────────────────────────── */
+  function openSheet(it) {
+    const dlg = $('[data-sheet]');
+    dlg.textContent = '';
+    let qty = 1;
+    let variant = it.v && it.v.length ? 0 : null;
+
+    const head = el('div', 'sheet__head');
+    const name = el('h2', 'sheet__name', nameOf(it));
+    name.id = 'sheet-name';
+    const close = el('button', 'sheet__close', '✕');
+    close.type = 'button';
+    close.setAttribute('aria-label', lang === 'th' ? 'ปิด' : 'Close');
+    close.addEventListener('click', () => dlg.close());
+    head.append(name, close);
+
+    const body = el('div', 'sheet__body');
+    if (it.img) {
+      const ph = el('div', 'sheet__photo');
+      if (it.img.bg) ph.style.background = it.img.bg;
+      const img = el('img');
+      img.src = it.img.s;
+      img.alt = (lang === 'th' ? it.img.altTh : it.img.altEn) || '';
+      if (it.img.fit === 'contain') img.style.objectFit = 'contain';
+      ph.appendChild(img);
+      body.appendChild(ph);
+
+      const cap = captionOf(it.img);
+      if (cap && cap.text) {
+        const p = el('p', 'cap');
+        if (cap.sample) { const b = el('b'); b.textContent = cap.text.split(' · ')[0]; p.append(b, ' · ' + cap.text.split(' · ').slice(1).join(' · ')); }
+        else p.textContent = cap.text;
+        if (cap.licenceUrl) { p.append(' '); const a = el('a', null, lang === 'th' ? 'สัญญาอนุญาต' : 'licence'); a.href = cap.licenceUrl; a.target = '_blank'; a.rel = 'noopener noreferrer'; p.appendChild(a); }
+        body.appendChild(p);
+      }
+      if (it.img.byStudio) body.appendChild(el('p', 'cap', (lang === 'th' ? it.img.idTh : it.img.idEn) || t().byStudio));
+    }
+
+    for (const n of it.notes || []) body.appendChild(el('p', 'cap', lang === 'th' ? n.th : n.en));
+
+    const priceBlock = el('div', 'block');
+    priceBlock.appendChild(el('h3', null, lang === 'th' ? 'ราคา' : 'Price'));
+    priceBlock.appendChild(el('p', null, (it.p == null ? '—' : baht(it.p)) + ' · ' + priceLine(it)));
+    body.appendChild(priceBlock);
+
+    if (it.v && it.v.length) {
+      const b = el('div', 'block');
+      b.appendChild(el('h3', null, lang === 'th' ? 'ตัวเลือก' : 'Options'));
+      const opts = el('div', 'opts');
+      it.v.forEach((v, i) => {
+        const label = el('label');
+        const radio = el('input');
+        radio.type = 'radio'; radio.name = 'variant'; radio.checked = i === 0;
+        radio.addEventListener('change', () => { variant = i; });
+        label.append(radio, el('span', null, (lang === 'th' ? (v.th || v.en) : (v.en || v.th)) + (v.p != null ? ' · ' + baht(v.p) : '')));
+        opts.appendChild(label);
+      });
+      b.appendChild(opts);
+      body.appendChild(b);
+    }
+
+    const addBlock = el('div', 'block');
+    const row = el('div', 'card__foot');
+    const q = el('div', 'qty');
+    const minus = el('button', null, '−'); minus.type = 'button'; minus.setAttribute('aria-label', lang === 'th' ? 'ลดจำนวน' : 'Fewer');
+    const out = el('output', null, '1'); out.setAttribute('aria-live', 'polite');
+    const plus = el('button', null, '+'); plus.type = 'button'; plus.setAttribute('aria-label', lang === 'th' ? 'เพิ่มจำนวน' : 'More');
+    minus.addEventListener('click', () => { qty = Math.max(1, qty - 1); out.textContent = String(qty); });
+    plus.addEventListener('click', () => { qty = Math.min(20, qty + 1); out.textContent = String(qty); });
+    q.append(minus, out, plus);
+    const addBtn = el('button', 'btn', t().add);
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', () => { addToCart(it, qty, variant); dlg.close(); });
+    row.append(q, addBtn);
+    addBlock.appendChild(row);
+    body.appendChild(addBlock);
+
+    dlg.append(head, body);
+    dlg.showModal();
+  }
+
+  /* ── the cart ────────────────────────────────────────────────────────── */
+  function addToCart(it, qty, variantIndex) {
+    const v = variantIndex != null && it.v && it.v[variantIndex] ? it.v[variantIndex] : null;
+    const unit = v && v.p != null ? v.p : it.p;
+    const key = it.id + '::' + (v ? (v.en || v.th) : '');
+    const found = cart.find((l) => l.key === key);
+    if (found) found.qty += qty;
+    else cart.push({ key, itemId: it.id, nameTh: it.th || it.en, nameEn: it.en || it.th, qty, unitTHB: unit, variant: v ? (v.en || v.th) : null });
+    render();
+  }
+  const cartTotal = () => cart.reduce((s, l) => s + (l.unitTHB || 0) * l.qty, 0);
+
+  async function sendOrder(button) {
+    if (!cart.length || !Me.table) return;
+    button.disabled = true;
+    button.textContent = t().sending;
+    const now = new Date();
+    const order = {
+      id: 'o' + now.getTime().toString(36) + Math.random().toString(36).slice(2, 7),
+      tableId: Me.table,
+      tableName: 'Table ' + Me.table,
+      placedAt: now.toISOString(),
+      status: 'submitted',
+      lines: cart.map((l) => ({ itemId: l.itemId, nameTh: l.nameTh, nameEn: l.nameEn, qty: l.qty, unitTHB: l.unitTHB, variant: l.variant })),
+      totalTHB: cartTotal(),
+      note: cartNote || '',
+      history: [{ status: 'submitted', at: now.toISOString() }],
+    };
+    await Store.add(order);
+    cart = []; cartNote = '';
+    screen = 'orders';
+    render();
+  }
+
+  /* ── screens ─────────────────────────────────────────────────────────── */
+  function renderIndex(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().indexTitle));
+    p.appendChild(el('p', 'sub', t().indexSub));
+
+    const notice = el('div', 'notice');
+    notice.appendChild(el('p', null, t().demoBanner));
+    p.appendChild(notice);
+
+    const ul = el('ul', 'index-list');
+    for (const key of ['menu', 'orders', 'kitchen', 'stats']) {
+      const li = el('li');
+      const b = el('button');
+      b.type = 'button';
+      b.append(el('strong', null, t().indexItems[key][0]), el('span', 'muted', t().indexItems[key][1]));
+      b.addEventListener('click', () => { screen = key; render(); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    }
+    p.appendChild(ul);
+    main.appendChild(p);
+  }
+
+  function renderTablePicker(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().pickTable));
+    p.appendChild(el('p', 'sub', lang === 'th' ? 'ในร้านจริง ลูกค้าสแกน QR ที่โต๊ะ' : 'In the real thing a guest scans the QR card on the table.'));
+    const row = el('div', 'tabs');
+    row.style.flexWrap = 'wrap';
+    for (const id of TABLES) {
+      const b = el('button', null, tableName(id));
+      b.type = 'button';
+      b.addEventListener('click', () => { Me.table = id; render(); });
+      row.appendChild(b);
+    }
+    p.appendChild(row);
+    main.appendChild(p);
+  }
+
+  function renderMenu(main) {
+    if (!Me.table) return renderTablePicker(main);
+
+    const p = el('section', 'panel');
+    const head = el('div', 'card__foot');
+    head.style.marginBottom = '10px';
+    head.appendChild(el('strong', null, tableName(Me.table)));
+    const change = el('button', 'btn btn--quiet btn--small', t().changeTable);
+    change.type = 'button';
+    change.addEventListener('click', () => { Me.table = ''; render(); });
+    head.appendChild(change);
+    p.appendChild(head);
+
+    const tools = el('div', 'tools');
+    const tabs = el('div', 'tabs');
+    for (const g of MENU.groups) {
+      const b = el('button', null, lang === 'th' ? g.nameTh : g.nameEn);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(g.id === group && !query));
+      b.addEventListener('click', () => { group = g.id; category = null; query = ''; render(); });
+      tabs.appendChild(b);
+    }
+    tools.appendChild(tabs);
+    const search = el('div', 'search');
+    const input = el('input');
+    input.type = 'search'; input.value = query; input.placeholder = t().search;
+    input.setAttribute('aria-label', t().search);
+    input.addEventListener('input', () => { query = input.value.trim().toLowerCase(); render({ keepFocus: 'search' }); });
+    search.appendChild(input);
+    tools.appendChild(search);
+    p.appendChild(tools);
+
+    const groupObj = MENU.groups.find((g) => g.id === group) || MENU.groups[0];
+    let items = MENU.items;
+    if (query) items = items.filter((i) => i.q.includes(query));
+    else items = items.filter((i) => i.g === groupObj.id);
+
+    if (!query) {
+      const chips = el('div', 'chips');
+      for (const cid of groupObj.categoryIds) {
+        const c = MENU.categories.find((x) => x.id === cid);
+        if (!c) continue;
+        const b = el('button', null, lang === 'th' ? c.nameTh : c.nameEn);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(category === cid));
+        b.addEventListener('click', () => { category = category === cid ? null : cid; render(); });
+        chips.appendChild(b);
+      }
+      p.appendChild(chips);
+      if (category) items = items.filter((i) => i.c === category);
+    }
+
+    if (!items.length) {
+      p.appendChild(el('p', 'empty', t().searchNone));
+      main.appendChild(p);
+      return;
+    }
+
+    const byCat = new Map();
+    for (const it of items) { if (!byCat.has(it.c)) byCat.set(it.c, []); byCat.get(it.c).push(it); }
+    for (const [cid, list] of byCat) {
+      const c = MENU.categories.find((x) => x.id === cid);
+      const h = el('h3', 'cat-head', c ? (lang === 'th' ? c.nameTh : c.nameEn) : cid);
+      if (c) h.appendChild(el('span', null, lang === 'th' ? c.nameEn : c.nameTh));
+      p.appendChild(h);
+      const grid = el('div', 'cards');
+      for (const it of list) grid.appendChild(cardNode(it));
+      p.appendChild(grid);
+    }
+    main.appendChild(p);
+  }
+
+  function renderCartBar() {
+    const old = $('[data-bar]');
+    if (old) old.remove();
+    if (!cart.length || screen !== 'menu') return;
+    const bar = el('div', 'bar');
+    bar.setAttribute('data-bar', '');
+    const wrap = el('div', 'wrap');
+    const sum = el('div');
+    sum.append(el('strong', null, baht(cartTotal())), el('div', 'muted', cart.reduce((s, l) => s + l.qty, 0) + (lang === 'th' ? ' รายการ' : ' items')));
+    const go = el('button', 'btn', t().cart);
+    go.type = 'button';
+    go.addEventListener('click', () => { screen = 'cart'; render(); });
+    wrap.append(sum, go);
+    bar.appendChild(wrap);
+    document.body.appendChild(bar);
+  }
+
+  function renderCart(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().cart));
+    p.appendChild(el('p', 'sub', tableName(Me.table || '—')));
+    if (!cart.length) {
+      p.appendChild(el('p', 'empty', t().cartEmpty));
+      main.appendChild(p);
+      return;
+    }
+    const ul = el('ul', 'list');
+    for (const line of cart) {
+      const li = el('li', 'row');
+      const top = el('div', 'row__top');
+      top.append(el('strong', null, lang === 'th' ? line.nameTh : line.nameEn), el('span', 'muted', line.variant || ''));
+      li.appendChild(top);
+      const foot = el('div', 'card__foot');
+      const q = el('div', 'qty');
+      const minus = el('button', null, '−'); minus.type = 'button'; minus.setAttribute('aria-label', t().remove);
+      const out = el('output', null, String(line.qty));
+      const plus = el('button', null, '+'); plus.type = 'button'; plus.setAttribute('aria-label', t().qty);
+      minus.addEventListener('click', () => { line.qty -= 1; if (line.qty <= 0) cart = cart.filter((l) => l !== line); render(); });
+      plus.addEventListener('click', () => { line.qty += 1; render(); });
+      q.append(minus, out, plus);
+      foot.append(q, el('div', 'price', baht((line.unitTHB || 0) * line.qty)));
+      li.appendChild(foot);
+      ul.appendChild(li);
+    }
+    p.appendChild(ul);
+
+    const noteBlock = el('div', 'block');
+    const lbl = el('label');
+    lbl.appendChild(el('h3', null, t().note));
+    const ta = el('input');
+    ta.type = 'text'; ta.value = cartNote; ta.placeholder = t().notePlaceholder;
+    ta.style.cssText = 'width:100%;padding:9px 12px;border:1px solid var(--line-strong);border-radius:var(--radius-m);background:var(--surface);font:inherit';
+    ta.addEventListener('input', () => { cartNote = ta.value; });
+    lbl.appendChild(ta);
+    noteBlock.appendChild(lbl);
+    p.appendChild(noteBlock);
+
+    const totalRow = el('div', 'total');
+    totalRow.append(el('span', null, t().total), el('span', null, baht(cartTotal())));
+    p.appendChild(totalRow);
+
+    const send = el('button', 'btn btn--wide', t().send);
+    send.type = 'button';
+    send.style.marginTop = '14px';
+    send.addEventListener('click', () => sendOrder(send));
+    p.appendChild(send);
+    main.appendChild(p);
+  }
+
+  function orderRow(o, withMoves) {
+    const li = el('li', 'row');
+    const top = el('div', 'row__top');
+    top.append(
+      el('strong', null, tableName(o.tableId)),
+      el('span', 'status status--' + o.status, t().status[o.status] || o.status),
+      el('span', 'muted', new Date(o.placedAt).toLocaleTimeString(lang === 'th' ? 'th-TH' : 'en-GB', { hour: '2-digit', minute: '2-digit' })),
+    );
+    li.appendChild(top);
+    const lines = el('ul', 'lines');
+    for (const l of o.lines || []) {
+      const row = el('li');
+      row.append(el('span', null, l.qty + '× ' + (lang === 'th' ? l.nameTh : l.nameEn) + (l.variant ? ' · ' + l.variant : '')), el('span', null, baht((l.unitTHB || 0) * l.qty)));
+      lines.appendChild(row);
+    }
+    li.appendChild(lines);
+    if (o.note) li.appendChild(el('p', 'muted', t().note + ': ' + o.note));
+    const total = el('div', 'total');
+    total.append(el('span', null, t().total), el('span', null, baht(o.totalTHB || 0)));
+    li.appendChild(total);
+
+    if (withMoves) {
+      const next = { submitted: ['accepted', 'rejected'], accepted: ['preparing'], preparing: ['ready'], ready: ['served'] }[o.status] || [];
+      if (next.length) {
+        const acts = el('div', 'actions');
+        for (const s of next) {
+          const b = el('button', 'btn btn--small' + (s === 'rejected' ? ' btn--quiet' : ''), t().move[s]);
+          b.type = 'button';
+          b.addEventListener('click', () => Store.setStatus(o.id, s));
+          acts.appendChild(b);
+        }
+        li.appendChild(acts);
+      }
+    }
+    return li;
+  }
+
+  function renderMyOrders(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().myOrders));
+    p.appendChild(el('p', 'sub', Me.table ? tableName(Me.table) : t().pickTable));
+    const mine = Me.table ? Store.forTable(Me.table) : [];
+    if (!mine.length) { p.appendChild(el('p', 'empty', t().noOrders)); main.appendChild(p); return; }
+    const ul = el('ul', 'list');
+    for (const o of mine) ul.appendChild(orderRow(o, false));
+    p.appendChild(ul);
+    main.appendChild(p);
+  }
+
+  function renderKitchen(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().kitchenTitle));
+    p.appendChild(el('p', 'sub', t().kitchenSub));
+    const all = Store.all();
+    if (!all.length) { p.appendChild(el('p', 'empty', t().noKitchen)); main.appendChild(p); return; }
+    const cols = el('div', 'cols');
+    for (const s of ['submitted', 'accepted', 'preparing', 'ready', 'served']) {
+      const list = all.filter((o) => o.status === s);
+      const col = el('div', 'col');
+      const h = el('h3');
+      h.append(el('span', null, t().status[s]), el('span', 'muted', String(list.length)));
+      col.appendChild(h);
+      const ul = el('ul', 'list');
+      for (const o of list) ul.appendChild(orderRow(o, true));
+      if (!list.length) ul.appendChild(el('li', 'muted', '—'));
+      col.appendChild(ul);
+      cols.appendChild(col);
+    }
+    p.appendChild(cols);
+    const done = all.filter((o) => o.status === 'rejected' || o.status === 'cancelled');
+    if (done.length) {
+      p.appendChild(el('h3', 'cat-head', t().status.rejected));
+      const ul = el('ul', 'list');
+      for (const o of done) ul.appendChild(orderRow(o, false));
+      p.appendChild(ul);
+    }
+    main.appendChild(p);
+  }
+
+  function renderStats(main) {
+    const p = el('section', 'panel');
+    p.appendChild(el('h2', null, t().statsTitle));
+    p.appendChild(el('p', 'sub', t().statsSub));
+    const all = Store.all().filter((o) => o.status !== 'rejected' && o.status !== 'cancelled');
+    if (!all.length) { p.appendChild(el('p', 'empty', t().noStats)); main.appendChild(p); return; }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const items = all.reduce((s, o) => s + (o.lines || []).reduce((n, l) => n + l.qty, 0), 0);
+    const revenue = all.reduce((s, o) => s + (o.totalTHB || 0), 0);
+    const tiles = el('div', 'tiles');
+    const tile = (n, label) => { const d = el('div', 'tile'); d.append(el('b', null, String(n)), el('span', null, label)); return d; };
+    tiles.append(
+      tile(all.filter((o) => String(o.placedAt).slice(0, 10) === today).length, t().ordersToday),
+      tile(all.length, t().ordersAll),
+      tile(items, t().itemsSold),
+      tile(baht(Math.round(revenue / all.length)), t().avg),
+    );
+    p.appendChild(tiles);
+
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      days.push({ d, n: all.filter((o) => String(o.placedAt).slice(0, 10) === d).length });
+    }
+    const top = Math.max(1, ...days.map((x) => x.n));
+    const chartWrap = el('div', 'chart-wrap');
+    chartWrap.appendChild(el('h3', 'cat-head', t().last7));
+    const chart = el('div', 'chart');
+    for (const day of days) {
+      const bar = el('div');
+      bar.style.height = Math.round((day.n / top) * 100) + '%';
+      bar.title = day.d + ' · ' + day.n;
+      bar.appendChild(el('span', null, day.d.slice(5)));
+      chart.appendChild(bar);
+    }
+    chartWrap.appendChild(chart);
+    p.appendChild(chartWrap);
+
+    const counts = new Map();
+    for (const o of all) for (const l of o.lines || []) counts.set(l.itemId, (counts.get(l.itemId) || 0) + l.qty);
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const nameById = (id) => { const it = MENU.items.find((x) => x.id === id); return it ? nameOf(it) : id; };
+    const listOf = (rows) => { const ul = el('ul', 'lines'); for (const [id, n] of rows) { const li = el('li'); li.append(el('span', null, nameById(id)), el('span', null, String(n))); ul.appendChild(li); } return ul; };
+    const two = el('div', 'cols');
+    const a = el('div', 'col'); a.appendChild(el('h3', null, t().most)); a.appendChild(listOf(ranked.slice(0, 5)));
+    const b = el('div', 'col'); b.appendChild(el('h3', null, t().least)); b.appendChild(listOf(ranked.slice(-5).reverse()));
+    two.append(a, b);
+    p.appendChild(two);
+    main.appendChild(p);
+  }
+
+  /* ── frame ───────────────────────────────────────────────────────────── */
+  function renderScreens() {
+    const nav = $('[data-screens]');
+    nav.textContent = '';
+    for (const key of ['index', 'menu', 'orders', 'kitchen', 'stats']) {
+      const b = el('button', null, t().screens[key]);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(screen === key || (screen === 'cart' && key === 'menu')));
+      b.addEventListener('click', () => { screen = key; render(); window.scrollTo(0, 0); });
+      nav.appendChild(b);
+    }
+  }
+
+  function render(opts) {
+    const main = $('#main');
+    const focusWasSearch = opts && opts.keepFocus === 'search';
+    const caret = focusWasSearch && $('.search input') ? $('.search input').selectionStart : null;
+    main.textContent = '';
+    renderScreens();
+    for (const node of document.querySelectorAll('[data-t]')) {
+      const key = node.getAttribute('data-t');
+      if (key === 'storeNote') node.textContent = Store.shared ? t().sharedOn : t().sharedOff;
+      else node.textContent = t()[key] || '';
+    }
+    document.documentElement.lang = lang;
+    if (screen === 'index') renderIndex(main);
+    else if (screen === 'menu') renderMenu(main);
+    else if (screen === 'cart') renderCart(main);
+    else if (screen === 'orders') renderMyOrders(main);
+    else if (screen === 'kitchen') renderKitchen(main);
+    else if (screen === 'stats') renderStats(main);
+    renderCartBar();
+    if (focusWasSearch) {
+      const input = $('.search input');
+      if (input) { input.focus(); if (caret != null) input.setSelectionRange(caret, caret); }
+    }
+  }
+
+  for (const b of document.querySelectorAll('[data-lang]')) {
+    b.addEventListener('click', () => {
+      lang = b.getAttribute('data-lang');
+      for (const other of document.querySelectorAll('[data-lang]')) other.setAttribute('aria-pressed', String(other === b));
+      render();
+    });
+  }
+
+  render();
+  Store.onChange(() => render());
+  Store.init().then(() => render());
+})();
+</script>
