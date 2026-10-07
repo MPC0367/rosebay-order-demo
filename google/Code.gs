@@ -343,6 +343,12 @@ function setupSheet() {
 
   headerRow_(book.getSheetByName(TAB.orders), ORDER_COLUMNS);
   headerRow_(book.getSheetByName(TAB.lines), LINE_COLUMNS);
+  // Table "01" and an order id are text. Left as a number format, a spreadsheet reads "01" as one
+  // and hands back "1", and the site then cannot match a guest to their own table.
+  textColumn_(book.getSheetByName(TAB.orders), ORDER_COLUMNS.indexOf('order_id') + 1);
+  textColumn_(book.getSheetByName(TAB.orders), ORDER_COLUMNS.indexOf('table') + 1);
+  textColumn_(book.getSheetByName(TAB.lines), LINE_COLUMNS.indexOf('order_id') + 1);
+  textColumn_(book.getSheetByName(TAB.lines), LINE_COLUMNS.indexOf('table') + 1);
   var first = book.getSheets()[0];
   if (first && ['Sheet1', 'แผ่น1'].indexOf(first.getName()) >= 0 && first.getLastRow() === 0) book.deleteSheet(first);
   SpreadsheetApp.flush();
@@ -359,6 +365,12 @@ function headerRow_(sheet, columns) {
   if (!same) head.setValues([columns]);
   head.setFontWeight('bold');
   sheet.setFrozenRows(1);
+}
+
+function textColumn_(sheet, col) {
+  if (!sheet || col < 1) return;
+  var rows = Math.max(1, sheet.getMaxRows() - 1);
+  sheet.getRange(2, col, rows, 1).setNumberFormat('@');
 }
 
 function stampReadMe_(book) {
