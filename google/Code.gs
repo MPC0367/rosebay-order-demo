@@ -155,7 +155,15 @@ function place_(order) {
       Number(l.qty), Number(l.unitTHB), Number(l.qty) * Number(l.unitTHB),
     ];
   });
-  if (rows.length) lines.getRange(lines.getLastRow() + 1, 1, rows.length, LINE_COLUMNS.length).setValues(rows);
+  if (rows.length) {
+    var firstLine = lines.getLastRow() + 1;
+    lines.getRange(firstLine, 1, rows.length, LINE_COLUMNS.length).setValues(rows);
+    asText_(lines, firstLine, rows.length, LINE_COLUMNS.indexOf('table') + 1, text_(order.tableId));
+  }
+
+  // appendRow parses what it is given, so a table called "01" lands as the number 1 and the guest
+  // can no longer be matched to their table. Writing the cell again, as text, is what holds it.
+  asText_(orders, orders.getLastRow(), 1, ORDER_COLUMNS.indexOf('table') + 1, text_(order.tableId));
 
   stampReadMe_(book);
   SpreadsheetApp.flush();
@@ -365,6 +373,16 @@ function headerRow_(sheet, columns) {
   if (!same) head.setValues([columns]);
   head.setFontWeight('bold');
   sheet.setFrozenRows(1);
+}
+
+/** Writes one column of a block as text, so a value like "01" keeps its shape. */
+function asText_(sheet, firstRow, howMany, col, value) {
+  if (!sheet || col < 1 || howMany < 1) return;
+  var range = sheet.getRange(firstRow, col, howMany, 1);
+  range.setNumberFormat('@');
+  var values = [];
+  for (var i = 0; i < howMany; i++) values.push([value]);
+  range.setValues(values);
 }
 
 function textColumn_(sheet, col) {

@@ -1,0 +1,318 @@
+/* ──────────────────────────────────────────────────────────────────────────────────────────────
+   Rosebay ordering demonstration — tokens
+   O2 Design Studio
+
+   The design system both sites are built from: the ordering site (order-demo) and the admin site
+   (order-admin) carry this file byte for byte. Nothing in either site may invent a colour, a type
+   size, a space or a duration: if it is not here, add it here first.
+
+   Where it comes from. The colour, type, space, radius, shadow and easing values are the published
+   Rosebay menu study's own (ordering-app/dist-artifact/style.css), which is the house style and the
+   quality bar. Three things the study has no answer for are added, and marked NEW:
+     · a status ramp, because the study shows nothing that has a state;
+     · a spacing scale with semantic names, so a card's padding is a decision made once here
+       rather than a number picked again on every component;
+     · a type scale with real steps, replacing the study's near-duplicate sizes (1.125 and
+       1.1875rem, 1.3125 and 1.375rem) with one ladder.
+
+   One look, light. The study is a single light palette and so is this: no dark palette, no media
+   query that flips it, `color-scheme: light` declared, and an explicit background on body so the
+   page never inherits the browser's.
+
+   Load order: tokens.css, then ui.css, then the page's own small stylesheet if it has one.
+   ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+:root {
+
+  /* ── colour: paper and ink ──────────────────────────────────────────────────────────────────
+     Warm paper grounds and a near-black ink that is not black. --surface is the raised ground
+     (cards, dialogs, inputs); --paper is the page; --paper-2 and --paper-3 are recessed grounds
+     (footers, inactive segments, image letterboxing). Every ink/ground pair used for text in
+     ui.css is at or above 4.5:1. */
+  --paper: #F5F2E9;
+  --paper-2: #EDE8DA;
+  --paper-3: #E3DCC9;
+  --surface: #FFFEFA;
+
+  --ink: #22251F;               /* 15.4:1 on --surface — headings, names, prices            */
+  --ink-2: #4A4E45;             /*  8.4:1 on --surface — body text                          */
+  --ink-3: #5F6459;             /*  6.0:1 on --surface, 5.0:1 on --paper-2 — captions, meta */
+
+  --line: #D5CDB8;              /* a seam between two grounds; never a control's only edge  */
+  --line-strong: #857E6E;       /* 4.0:1 on --surface — the edge of a control               */
+
+  /* ── colour: the house greens and woods ───────────────────────────────────────────────────── */
+  --green: #12564C;             /* 8.5:1 on --surface — the one accent: action, selection    */
+  --green-deep: #0C3D36;        /* pressed and hover on a green ground                       */
+  --green-tint: #E3EFEC;
+  --on-green: #FFFEFA;          /* 8.5:1 on --green                                          */
+
+  --timber-ink: #7A4E32;        /* 7.0:1 on --surface — a note, a provenance line, "in hand" */
+  --timber-tint: #F6ECE1;
+
+  --amber-ink: #8A4300;         /* 7.2:1 on --surface — something waiting on a person        */
+  --amber-tint: #FCEBD7;
+
+  /* NEW. The study never refuses anything, so it has no red. A brick that belongs to the same
+     warm family as the timber and the amber, dark enough to carry text on paper and on its own
+     tint: 7.6:1 on --surface, 6.8:1 on --paper, 6.5:1 on --brick-tint. */
+  --brick-ink: #9A2C20;
+  --brick-tint: #FBE8E4;
+  --on-brick: #FFFEFA;          /* 7.6:1 on --brick-ink                                      */
+
+  --backdrop: rgb(34 37 31 / .48);
+  --focus: #12564C;
+
+  /* ── NEW — the status ramp ──────────────────────────────────────────────────────────────────
+     Five roles, not seven. The order book keeps seven statuses (submitted, accepted, preparing,
+     ready, served, rejected, cancelled); they map onto five roles in orders.js
+     (OrderBook.statusRole) and ui.css colours the roles:
+
+       wait     submitted              something is waiting on a person
+       hand     accepted, preparing    the kitchen has it
+       ready    ready                  the guest can be served — the one loud state
+       done     served                 finished, quiet
+       refused  rejected, cancelled    it will not happen
+
+     Hue is the LAST cue, never the only one. Each status pill carries its own word and its own
+     shape mark (hollow, ringed, half, solid, tick, slashed diamond — see ui.css), so the five
+     roles are told apart with the colour removed entirely. The lightness also separates them
+     where it can: `ready` is the only filled pill on either site, and `done` is the only one on a
+     grey-warm ground. `wait` and `hand` sit at the same lightness on purpose — they are
+     neighbours in the sequence, and their word and mark do the distinguishing. */
+  --st-wait-ink: var(--amber-ink);
+  --st-wait-tint: var(--amber-tint);
+  --st-wait-edge: #D9A266;
+
+  --st-hand-ink: var(--timber-ink);
+  --st-hand-tint: var(--timber-tint);
+  --st-hand-edge: #C9A185;
+
+  --st-ready-ink: var(--on-green);          /* filled: ink ON the ramp colour                 */
+  --st-ready-tint: var(--green);            /* the ground is the green itself                 */
+  --st-ready-edge: var(--green-deep);
+
+  --st-done-ink: var(--ink-2);              /* 7.0:1 on --paper-2                             */
+  --st-done-tint: var(--paper-2);
+  --st-done-edge: var(--line-strong);
+
+  --st-refused-ink: var(--brick-ink);
+  --st-refused-tint: var(--brick-tint);
+  --st-refused-edge: #D79A90;
+
+  /* ── type ───────────────────────────────────────────────────────────────────────────────────
+     System fonts stand in for Fraunces / Jost / Noto, as in the study: no font file is embedded,
+     so nothing has to download before the page is readable. Thai is written, not translated, and
+     the Thai faces are named first in the body stack. */
+  --font-head: Georgia, "Times New Roman", "Noto Serif Thai", serif;
+  --font-body: system-ui, -apple-system, "Noto Sans Thai", "Segoe UI", sans-serif;
+
+  /* NEW — one ladder, nine steps. Each step is a real step: no two are within a pixel of each
+     other, which is what made the study's own list hard to use. Sizes in rem, so they grow with
+     the reader's text setting; the px in the comment is at a 16px root.
+       50  timestamps, the last-refresh line
+      100  a photograph's provenance, a licence
+      200  meta, a label above a field, an eyebrow
+      300  secondary body — a second-language name, a hint
+      400  body
+      500  an item's name, a price, a button
+      600  a section heading
+      700  a dialog heading, a page heading
+      800  a figure meant to be read across a room: a table number, an order total
+      900  the one display number on the admin board */
+  --t-50: 0.75rem;              /* 12px */
+  --t-100: 0.8125rem;           /* 13px */
+  --t-200: 0.875rem;            /* 14px */
+  --t-300: 0.9375rem;           /* 15px */
+  --t-400: 1rem;                /* 16px */
+  --t-500: 1.0625rem;           /* 17px */
+  --t-600: 1.1875rem;           /* 19px */
+  --t-700: 1.375rem;            /* 22px */
+  --t-800: 1.75rem;             /* 28px */
+  --t-900: 2.25rem;             /* 36px */
+
+  /* Thai needs more leading than English at the same size: --lh-body is set for Thai, and
+     :lang(en) tightens it (see the base block below). */
+  --lh-tight: 1.3;              /* a heading, a number                                        */
+  --lh-head: 1.55;              /* a multi-line heading                                       */
+  --lh-body: 1.7;               /* Thai running text                                          */
+  --lh-body-en: 1.5;            /* English running text                                       */
+  --measure: 64ch;              /* the longest a paragraph is allowed to get                  */
+
+  --tracking-label: 0.04em;     /* small uppercase English labels; 0 for Thai                 */
+
+  /* ── space ──────────────────────────────────────────────────────────────────────────────────
+     The study's 4px scale, extended with two larger steps for the rhythm between sections of a
+     long board. Nothing in ui.css uses a pixel value that is not one of these. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 56px;              /* NEW — between the major regions of a page                  */
+  --space-10: 72px;             /* NEW — above the footer                                     */
+
+  /* NEW — the scale, used. These are the decisions, made once: a card's padding, the gap inside
+     a list, the gap between sections. A component reaches for one of these before it reaches for
+     a --space-n, and never for a bare pixel. */
+  --pad-card: var(--space-4);           /* inside a card or a dialog section                  */
+  --pad-card-tight: var(--space-3);     /* inside a dense card: a menu card, a queue line     */
+  --pad-page-y: var(--space-6);         /* the page's own top and bottom padding              */
+  --gap-list: var(--space-3);           /* between the cards of one list                      */
+  --gap-row: var(--space-2);            /* between the rows inside one card                   */
+  --gap-field: var(--space-4);          /* between two form fields                            */
+  --gap-section: var(--space-8);        /* between two sections of a page                      */
+  --gutter: max(16px, env(safe-area-inset-left));   /* the page's side margin                 */
+
+  --tap: 44px;                  /* the smallest a control may be                              */
+  --tap-sm: 36px;               /* a control inside a row that already has a 44px target      */
+
+  /* ── shape ──────────────────────────────────────────────────────────────────────────────────
+     Shape carries role on these sites, so that the controls are not all the same pill. A pill is
+     reserved for a thing you choose between (a segment, a chip, a status). A button that does
+     something is a rounded rectangle. */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+  --hair: 1px;                  /* the width of a seam or a control's edge                     */
+  --rule: 3px;                  /* the width of a left edge that carries a status or a note    */
+
+  /* ── depth ──────────────────────────────────────────────────────────────────────────────────
+     Four shadows and no more. They say how far from the page a thing is, not how important it is. */
+  --shadow-card: 0 1px 2px rgb(34 37 31 / .06);
+  --shadow-sticky: 0 2px 8px -2px rgb(34 37 31 / .14);       /* a header holding the top      */
+  --shadow-raise: 0 -2px 10px -4px rgb(34 37 31 / .16);      /* NEW — a bar holding the foot  */
+  --shadow-overlay: 0 -8px 32px -12px rgb(34 37 31 / .30);   /* a dialog over the page        */
+
+  /* ── motion ─────────────────────────────────────────────────────────────────────────────────
+     These are controls — a button, a sheet, a chip — so motion stays under 300ms, and all of it
+     is switched off under prefers-reduced-motion in the base block below. */
+  --dur-fast: 150ms;
+  --dur-base: 180ms;
+  --dur-slow: 220ms;
+  --ease-out: cubic-bezier(.22,.9,.3,1);
+  --ease-standard: cubic-bezier(.2,0,0,1);
+
+  /* ── layout ─────────────────────────────────────────────────────────────────────────────────
+     --wrap is the reading column of the ordering site; --wrap-wide is the admin board, which has
+     columns to put side by side. --sticky-top is how much the sticky header takes, kept as a
+     variable so anchored scrolling clears it. */
+  --wrap: 640px;
+  --wrap-wide: 1240px;
+  --sticky-top: 112px;
+
+  --z-bar: 30;                  /* the sticky header                                          */
+  --z-foot: 40;                 /* a bar pinned to the bottom: the cart, the admin's totals   */
+  --z-toast: 60;
+  --z-skip: 70;                 /* the skip link, over everything                              */
+
+  color-scheme: light;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────────────────────────
+   BASE — the few element rules the tokens imply. Components live in ui.css.
+   ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html {
+  /* An anchored jump clears the sticky header instead of landing under it. */
+  scroll-padding-top: calc(var(--sticky-top) + var(--space-2));
+}
+
+body {
+  margin: 0;
+  background: var(--paper);     /* explicit: the page never inherits the browser's ground */
+  color: var(--ink);
+  font: 400 var(--t-400)/var(--lh-body) var(--font-body);
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+  /* A run with no break in it — an account name in a caption, a long English dish name — wraps
+     inside its box instead of running out of it. At 200% text on a narrow phone one such run was
+     wider than the page. */
+  overflow-wrap: break-word;
+}
+
+:lang(en) { line-height: var(--lh-body-en); }
+
+h1, h2, h3 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 600;
+  line-height: var(--lh-head);
+}
+
+img { max-width: 100%; }
+
+/* Every number that sits in a column — a price, a total, a quantity, a time — is tabular, so the
+   digits line up down the column. */
+.num, .price, time, [data-num] { font-variant-numeric: tabular-nums; }
+
+/* One focus ring everywhere: two rings, so it is visible on a light ground and on a green one. */
+:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+  border-radius: inherit;
+}
+
+.sr-only, .skip:not(:focus) {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+
+.skip {
+  position: fixed; z-index: var(--z-skip); top: var(--space-2); left: var(--space-2);
+  display: inline-flex; align-items: center; min-height: var(--tap);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface); color: var(--green);
+  border-radius: var(--radius-s); font-size: var(--t-300); text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition-duration: 1ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────────────────────────────
+   O2 STUDIO CREDIT — copied verbatim from assets/brand/o2-credit.html.
+   Do not restyle it, do not redraw the mark, do not change the path data in the markup. The
+   colour is set from the host footer's muted text colour, which on these two sites is --ink-3
+   (5.0:1 on --paper-2, the footer's ground); the mark follows via currentColor.
+
+   One departure from the snippet, carried over from the published menu study, where it was found
+   by testing: the lockup never wraps, so at 320px with text at 200% it was wider than the page
+   and pushed the whole footer sideways. The font-size is therefore capped by the viewport —
+   min(0.6875rem, 6vw) — which follows the reader's text size up to the width a phone can hold,
+   and no further. Everything else is the snippet as written.
+
+   The markup belongs at the very end of the page: see shared/CREDIT.html.
+   ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* ── O2 STUDIO CREDIT: copy from here ─────────────────────────────────────
+   The last thing on every page O2 builds, until the studio says otherwise.
+   Colour: set it to the host footer's muted text colour (one that already
+   passes AA on that ground); the mark follows via currentColor. Size: match
+   the host's small uppercase label; the mark scales with it in em.
+   If the host has "svg { display: block }" (most resets do), the
+   inline-block below is what keeps the mark on the text's line. */
+.o2-credit {
+  display: inline-flex; align-items: center; min-height: 44px;
+  color: inherit; text-decoration: none;
+  font-size: 0.6875rem; line-height: 1; letter-spacing: 0.2em; text-transform: uppercase;
+}
+.o2-credit:hover, .o2-credit:focus-visible { opacity: 0.8; }
+.o2-credit__lockup { white-space: nowrap; }
+/* Text on the O's baseline: 22.9% of the mark's height is the subscript 2. */
+.o2-credit__mark { display: inline-block; width: 1.95em; height: 1.6em; margin-right: 0.5em; vertical-align: -0.366em; }
+/* ── copy to here ───────────────────────────────────────────────────────── */
+
+/* The two host decisions the snippet asks the page to make. */
+.o2-credit { color: var(--ink-3); font-size: min(0.6875rem, 6vw); }
