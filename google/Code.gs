@@ -304,7 +304,7 @@ function currentKey_() {
 }
 
 function ensureKey_() {
-  var props = PropertiesService.getDocumentProperties();
+  var props = PropertiesService.getScriptProperties();
   var key = props.getProperty(KEY_PROPERTY);
   if (!key || key.length < 20) {
     key = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 40);
@@ -315,7 +315,7 @@ function ensureKey_() {
 
 /** Makes a new key. Both sites stop working until their config.js carries the new one. */
 function rotateKey_() {
-  PropertiesService.getDocumentProperties().deleteProperty(KEY_PROPERTY);
+  PropertiesService.getScriptProperties().deleteProperty(KEY_PROPERTY);
   return ensureKey_();
 }
 
