@@ -43,16 +43,18 @@
   /* ── top bar ─────────────────────────────────────────────────────────── */
   .top { position: sticky; top: 0; z-index: 30; background: var(--paper); border-bottom: 1px solid var(--line); }
   .top__row { display: flex; align-items: center; gap: 12px; padding: 10px 0; flex-wrap: wrap; }
-  .brand { font-family: var(--font-head); font-size: 1.25rem; margin-right: auto; }
-  .brand small { display: block; font-family: var(--font-body); font-size: .75rem; color: var(--ink-3); font-weight: 400; }
+  .brand { flex: 1 1 auto; min-width: 0; margin-right: auto; }
+  .brand__name { margin: 0; font-family: var(--font-head); font-size: 1.125rem; line-height: 1.3; letter-spacing: .01em; overflow-wrap: normal; }
+  .brand__sub { color: var(--ink-3); font-size: .8125rem; white-space: nowrap; }
+  .brand__tag { margin: 2px 0 0; font-size: .875rem; line-height: 1.45; color: var(--timber-ink); }
   .lang { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--pill); overflow: hidden; }
-  .lang button { background: none; border: 0; padding: 6px 14px; cursor: pointer; font-size: .875rem; }
+  .lang button { min-width: 48px; min-height: 40px; background: none; border: 0; padding: 0 12px; color: var(--ink-2); cursor: pointer; font-size: .9375rem; }
   .lang button[aria-pressed="true"] { background: var(--green); color: var(--on-green); }
 
   .screens { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; scrollbar-width: thin; }
   .screens button {
-    flex: 0 0 auto; background: var(--paper-2); border: 1px solid var(--line);
-    border-radius: var(--pill); padding: 7px 14px; font-size: .875rem; cursor: pointer; white-space: nowrap;
+    flex: 0 0 auto; min-height: 40px; background: var(--paper-3); border: 1px solid var(--line-strong);
+    border-radius: var(--pill); padding: 0 16px; font-size: .9375rem; cursor: pointer; white-space: nowrap;
   }
   .screens button[aria-pressed="true"] { background: var(--green); color: var(--on-green); border-color: var(--green); }
 
@@ -67,14 +69,14 @@
   /* ── menu ────────────────────────────────────────────────────────────── */
   .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
   .tabs { display: flex; gap: 6px; }
-  .tabs button { background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--pill); padding: 8px 16px; cursor: pointer; }
+  .tabs button { flex: 1 1 auto; min-height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--pill); background: var(--paper-3); color: var(--ink); font: 500 1rem/1.25 var(--font-body); cursor: pointer; }
   .tabs button[aria-pressed="true"] { background: var(--green); color: var(--on-green); border-color: var(--green); }
   .search { flex: 1 1 180px; min-width: 0; }
   .search input { width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); font: inherit; }
 
   .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 8px; }
-  .chips button { flex: 0 0 auto; background: none; border: 1px solid var(--line); border-radius: var(--pill); padding: 5px 12px; font-size: .8125rem; cursor: pointer; white-space: nowrap; }
-  .chips button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--green); color: var(--green-deep); }
+  .chips button { flex: none; min-height: 40px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: var(--pill); background: var(--paper-3); color: var(--ink); font-size: .9375rem; cursor: pointer; white-space: nowrap; }
+  .chips button[aria-pressed="true"] { background: var(--green-tint); border-color: var(--green); color: var(--green); font-weight: 600; }
 
   .cat-head { font-size: 1.0625rem; margin: 22px 0 10px; padding-top: 4px; }
   .cat-head span { display: block; font-family: var(--font-body); font-size: .8125rem; color: var(--ink-3); font-weight: 400; }
@@ -83,9 +85,14 @@
   @media (min-width: 620px) { .cards { grid-template-columns: 1fr 1fr; } }
   @media (min-width: 980px) { .cards { grid-template-columns: 1fr 1fr 1fr; } }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l); padding: 12px; display: flex; gap: 12px; align-items: flex-start; }
-  .thumb { position: relative; flex: 0 0 auto; width: 96px; height: 96px; border-radius: var(--radius-m); overflow: hidden; background: var(--paper-2); }
-  @media (max-width: 280px) { .card { flex-direction: column; } .thumb { width: 100%; height: 160px; } }
+  .card {
+    --thumb: 96px;
+    display: grid; grid-template-columns: var(--thumb) minmax(0, 1fr); gap: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m);
+    box-shadow: 0 1px 2px rgb(34 37 31 / .06); padding: 12px; min-height: 96px; align-content: start;
+  }
+  .thumb { position: relative; width: var(--thumb); height: var(--thumb); border-radius: 8px; overflow: hidden; background: var(--paper-2); }
+  @media (max-width: 280px) { .card { grid-template-columns: minmax(0, 1fr); } .thumb { width: 100%; height: 160px; } }
   .thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
   .thumb--contain img { object-fit: contain; }
   .thumb__tag {
@@ -181,23 +188,15 @@
   .credit span { font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
 
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --paper: #16180F; --paper-2: #1F2219; --paper-3: #2A2E23; --surface: #1B1E15;
-      --ink: #F2EFE4; --ink-2: #D2CDBD; --ink-3: #ABA695;
-      --line: #3A3E31; --line-strong: #6A6F5E;
-      --green: #7FC9B6; --green-deep: #BFE6DC; --green-tint: #1E3C36; --on-green: #10140D;
-      --amber-ink: #F0BE86; --amber-tint: #3A2A17;
-      --timber-ink: #E0B093; --timber-tint: #35251A;
-      color-scheme: dark;
-    }
-  }
 </style>
 
 <div class="top">
   <div class="wrap">
     <div class="top__row">
-      <div class="brand">Rosebay <small data-t="tagline"></small></div>
+      <div class="brand">
+        <p class="brand__name">Rosebay <span class="brand__sub">Home Cooking &amp; Café</span></p>
+        <p class="brand__tag" data-t="tagline"></p>
+      </div>
       <div class="lang" role="group" aria-label="Language">
         <button type="button" data-lang="th" aria-pressed="true">ไทย</button>
         <button type="button" data-lang="en" aria-pressed="false">EN</button>
@@ -880,14 +879,15 @@
     const chartWrap = el('div', 'chart-wrap');
     chartWrap.appendChild(el('h3', 'cat-head', t().last7));
     const chart = el('div', 'chart');
+    const dayRow = el('div', 'chart-days');
     for (const day of days) {
       const bar = el('div');
       bar.style.height = Math.round((day.n / top) * 100) + '%';
       bar.title = day.d + ' · ' + day.n;
-      bar.appendChild(el('span', null, day.d.slice(5)));
       chart.appendChild(bar);
+      dayRow.appendChild(el('span', null, day.d.slice(5)));
     }
-    chartWrap.appendChild(chart);
+    chartWrap.append(chart, dayRow);
     p.appendChild(chartWrap);
 
     const counts = new Map();
